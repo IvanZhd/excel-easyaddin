@@ -1,0 +1,94 @@
+Function EA_Interpolate_1D(X As Single, XRange As Range, YRange As Range, Optional InterpType As Integer = 0)
+' PURPOSE: Function returns interpolated value of "Y" for supplied X, based on supplied ranges of known
+' X and Y values.  Optional "InterpType argument controls how function responds to X arguments
+' outside the known X values:
+'   If InterpType is:
+'   = 0: returns an error (default)
+'   = 1: extrapolates based on last two X-Y pairs (either two highest or two lowest)
+'   = 2: extrapolates based on first and last X-Y pair (full range of supplied values)
+'   = 3: extrapolates based on first or last X-Y pair and the origin (0-0)
+'    Other values return an error
+     
+    Dim blErr      As Boolean
+    Dim iBase      As Integer
+    Dim iComp      As Integer
+    Dim i          As Integer
+    Dim dX0        As Double
+    Dim dX1        As Double
+    Dim dY0        As Double
+    Dim dY1        As Double
+    Dim Temp       As Variant
+     
+    On Error Resume Next
+     
+     ' ensure that XRange is sorted ascending so match function result is reliable
+    For i = 1 To XRange.Count - 1
+        If XRange(i + 1) < XRange(i) Then blErr = True
+    Next
+     
+    Temp = WorksheetFunction.Match(X, XRange, 1)
+    If IsError(Temp) Then
+        EA_Interpolate_1D = CVErr(Temp)
+    Else
+        iBase = CInt(Temp)
+        Select Case iBase
+        Case 0
+             'match function did not find a match - X =< min(XRange)
+            Select Case InterpType
+            Case 0
+                If X = XRange(1) Then 'X is not less than min(XRange) it is equal
+                    iBase = 1
+                Else 'X IS < lowest value in range - represents error
+                    blErr = True
+                End If
+            Case 1
+                iBase = 1
+                iComp = 2
+            Case 2
+                iBase = 1
+                iComp = XRange.Count
+            Case 3
+                iBase = 1
+                iComp = 0
+            Case Else
+                blErr = True
+            End Select
+        Case XRange.Count
+             'match returns last value in XRange, so X is >= max(XRange)
+            Select Case InterpType
+            Case 0
+                If X <> XRange(XRange.Count) Then 'X IS > highest value in range - represents an error
+                    blErr = True
+                End If
+            Case 1
+                iComp = iBase - 1
+            Case 2
+                iComp = 1
+            Case 3
+                iComp = 0
+            Case Else
+                blErr = True
+            End Select
+        Case Else
+             'match returned position of value next larger than X, within XRange
+            iComp = iBase + 1
+        End Select
+        dX0 = XRange(iBase)
+        dY0 = YRange(iBase)
+        If X = dX0 Then
+            EA_Interpolate_1D = dY0
+        Else
+            dX1 = XRange(iComp)
+            dY1 = YRange(iComp)
+        End If
+        If blErr = True Then
+            Err.Raise Number:=11
+            EA_Interpolate_1D = CVErr(Err)
+             'return "div0" error, to ensure that error propagates through s/sheet calculations
+        Else
+            EA_Interpolate_1D = (X - dX0) / (dX1 - dX0) * (dY1 - dY0) + dY0
+        End If
+    End If
+     
+End Function
+
